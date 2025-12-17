@@ -1,0 +1,127 @@
+// Copyright (C) 2020,2024-2025 azumakuniyuki and sisimai development team, All rights reserved.
+// This software is distributed under The BSD 2-Clause License.
+//  ____  _____ ____ ____ _________  ____     ___       _     _                   
+// |  _ \|  ___/ ___| ___|___ /___ \|___ \   / / \   __| | __| |_ __ ___  ___ ___ 
+// | |_) | |_ | |   |___ \ |_ \ __) | __) | / / _ \ / _` |/ _` | '__/ _ \/ __/ __|
+// |  _ <|  _|| |___ ___) |__) / __/ / __/ / / ___ \ (_| | (_| | | |  __/\__ \__ \
+// |_| \_\_|   \____|____/____/_____|_____/_/_/   \_\__,_|\__,_|_|  \___||___/___/
+
+package rfc5322
+import "strings"
+import "libsisimai.org/mailer-goemon/rfc1123"
+
+// IsEmailAddress checks that the argument is an email address or not.
+//   Arguments:
+//     - email (string): Email address string.
+//   Returns:
+//     - (bool): true if the argument is a valid email address.
+func IsEmailAddress(email string) bool {
+	// See http://www.ietf.org/rfc/rfc5322.txt
+	//   or http://www.ex-parrot.com/pdw/Mail-RFC822-Address.html ...
+	//   addr-spec       = local-part "@" domain
+	//   local-part      = dot-atom / quoted-string / obs-local-part
+	//   domain          = dot-atom / domain-literal / obs-domain
+	//   domain-literal  = [CFWS] "[" *([FWS] dcontent) [FWS] "]" [CFWS]
+	//   dcontent        = dtext / quoted-pair
+	//   dtext           = NO-WS-CTL /     ; Non white space controls
+	//                     %d33-90 /       ; The rest of the US-ASCII
+	//                     %d94-126        ;  characters not including "[",
+	//                                     ;  "]", or "\"
+	if len(email) < 5 { return false } // n@e.e
+
+	email  = strings.Trim(email, " \t")
+	lasta := strings.LastIndex(email, "@")
+
+	if len(email)         > 254 { return false } // The maximum length of an email address is 254
+	if lasta < 1 || lasta >  64 { return false } // The maximum length of a local part is 64
+	if len(email) - lasta > 253 { return false } // The maximum length of a domain part is 252
+
+	// "." as the first character of the local part and ".@" are not allowed in a local part when
+	// the local part is not quoted by "", but Non-RFC compliant email addresses still persist in
+	// the world.
+	// if email[0]         == 46 { return false } // '.' at the first character is not allowed in a local part
+	// if email[lasta - 1] == 46 { return false } // '.' before the "@" is not allowed in a local part
+
+	quote := IsQuotedAddress(email); if quote == false {
+		// The email address is not a quoted address
+		if strings.Count(email, "@") > 1 || strings.IndexByte(email, ' ') > 0 { return false }
+
+		// Non-RFC compliant email addresses still persist in the world.
+		// if strings.Contains(email, "..") { return false }
+		// if strings.Contains(email, ".@") { return false }
+	}
+	ipv46 := rfc1123.IsDomainLiteral(email)
+
+	for j, e := range(strings.Split(email, "")) {
+		// 31 < The ASCII code of each character < 127
+		if j < lasta {
+			// A local part of the email address: string before the last "@"
+			if email[j]  <  32 { return false } // Before ' '
+			if email[j]  > 126 { return false } // After  '~'
+			if j        ==   0 { continue     } // The character is the first character
+
+			if jp := email[j - 1]; quote == true {
+				// The email address has quoted local part like "neko@cat"@example.org
+				if jp == 92 { // 92 = '\'
+					// When the previous character IS '\', only the followings are allowed: '\', '"'
+					if email[j] != 92 && email[j] != 34 { return false }
+
+				} else {
+					// When the previous character IS NOT '\', `"` is allowed only immediately before the `@`.
+					if email[j] == 34 && j + 1 < lasta  { return false }
+				}
+			} else {
+				// The local part is not quoted
+				// ".." is not allowed in a local part when the local part is not quoted by "" but
+				// Non-RFC compliant email addresses still persist in the world.
+				// if e == "." && email[j-1] == 46 { return false }
+
+				// The following characters are not allowed in a local part without "..."@example.jp
+				if e == "," || e == "@" || e == ":" || e == ";" || e == "(" { return false }
+				if e == ")" || e == "<" || e == ">" || e == "[" || e == "]" { return false }
+			}
+		} else {
+			// A domain part of the email address: string after the last "@"
+			if email[j] ==  64 { continue     } // 64 = '@' 
+			if email[j] <   45 { return false } // Before '-'
+			if email[j] ==  47 { return false } // Equals '/'
+			if email[j] ==  92 { return false } // Equals '\'
+			if email[j] >  122 { return false } // After  'z'
+
+			if ipv46 == false {
+				// Such as "example.jp", "neko.example.org"
+				if email[j] > 57 && email[j] < 64 { return false } // ':' to '?'
+				if email[j] > 90 && email[j] < 97 { return false } // '[' to '`'
+
+			} else {
+				// Such as "[IPv4:192.0.2.25]"
+				if email[j] > 59 && email[j] < 64 { return false } // ';' to '?'
+				if email[j] > 93 && email[j] < 97 { return false } // '^' to '`'
+			}
+		}
+	}
+	if ipv46 { return true }
+
+	// Check that the domain part is a valid internet host or not.
+	return rfc1123.IsInternetHost(email[lasta + 1:])
+}
+
+// IsQuotedAddress checks that the local part of the argument is quoted address or not.
+//   Arguments:
+//     - email (string): Email address string.
+//   Returns:
+//     - (bool): true if the local part is quoted such as "neko kijitora"@example.jp .
+func IsQuotedAddress(email string) bool {
+	return strings.HasPrefix(email, `"`) && strings.Contains(email, `"@`)
+}
+
+// IsComment returns true if the string starts with "(" and ends with ")".
+//   Arguments:
+//     - text (string): String including an comment in email address like "(neko, cat)".
+//   Returns:
+//     - (bool): true if the argument is a comment.
+func IsComment(text string) bool {
+	if text == "" || !strings.HasPrefix(text, "(") || !strings.HasSuffix(text, ")") { return false }
+	return true
+}
+
