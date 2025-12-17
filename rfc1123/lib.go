@@ -1,0 +1,118 @@
+// Copyright (C) 2024-2025 azumakuniyuki and sisimai development team, All rights reserved.
+// This software is distributed under The BSD 2-Clause License.
+//  ____  _____ ____ _ _ ____  _____ 
+// |  _ \|  ___/ ___/ / |___ \|___ / 
+// | |_) | |_ | |   | | | __) | |_ \ 
+// |  _ <|  _|| |___| | |/ __/ ___) |
+// |_| \_\_|   \____|_|_|_____|____/ 
+
+// package "rfc1123" provides functions related to Internet hosts described in RFC1123.
+// https://datatracker.ietf.org/doc/html/rfc1123
+package rfc1123
+import "strings"
+import "libsisimai.org/mailer-goemon/moji"
+import "libsisimai.org/mailer-goemon/rfc791"
+
+var sandwiched = [][]string{
+	// (Postfix) postfix/src/smtp/smtp_proto.c: "host %s said: %s (in reply to %s)",
+	// - <kijitora@example.com>: host re2.example.com[198.51.100.2] said: 550 ...
+	// - <kijitora@example.org>: host r2.example.org[198.51.100.18] refused to talk to me:
+	[]string{"host ", " said: "},
+	[]string{"host ", " talk to me: "},
+	[]string{"while talking to ", ":"}, // (Sendmail) ... while talking to mx.bouncehammer.jp.:
+	[]string{"host ", " ["},            // (Exim) host mx.example.jp [192.0.2.20]: 550 5.7.0 
+	[]string{" by ", ". ["},            // (Gmail) ...for the recipient domain example.jp by mx.example.jp. [192.0.2.1].
+
+	// (MailFoundry)
+	// - Delivery failed for the following reason: Server mx22.example.org[192.0.2.222] failed with: 550...
+	// - Delivery failed for the following reason: mail.example.org[192.0.2.222] responded with failure: 552..
+	[]string{"delivery failed for the following reason: ", " with"},
+	[]string{"remote system: ", "("}, // (MessagingServer) Remote system: dns;mx.example.net (mx. -- 
+	[]string{"smtp server <", ">"},   // (X6) SMTP Server <smtpd.libsisimai.org> rejected recipient ...
+	[]string{"-mta: ", ">"},          // (MailMarshal) Reporting-MTA:      <rr1.example.com>
+	[]string{" : ", "["},             // (SendGrid) cat:000000:<cat@example.jp> : 192.0.2.1 : mx.example.jp:[192.0.2.2]...
+}
+var startafter = []string{
+	"generating server: ",   // (Exchange2007) Generating server: mta4.example.org
+	"serveur de g",          // fr-FR/Serveur de gènèration
+	"server di generazione", // it-CH
+	"genererande server",    // sv-SE
+}
+var existuntil = []string{
+	" did not like our ",  // (Dragonfly) mail-inbound.libsisimai.net [192.0.2.25] did not like our DATA: ...
+}
+
+// IsInternetHost returns true when the given string is a valid Internet hostname.
+//   Arguments:
+//     - host (string): Hostname
+//   Returns:
+//     - (bool): true if it is a valid Internet hostname, false otherwise.
+//   See:
+//     - https://datatracker.ietf.org/doc/html/rfc1123
+func IsInternetHost(host string) bool {
+	if len(host) < 4 || len(host) > 255 { return false }
+
+	// Deal "localhost", "localhost6" as a valid hostname
+	if host == "localhost" || host == "localhost6" { return true  }
+	if strings.IndexByte(host, '.') == -1          { return false }
+	if strings.Contains(host, "..") == true        { return false }
+	if moji.HasPrefixAny(host, []string{".", "-"}) { return false }
+	if strings.HasSuffix(host, "-") == true        { return false }
+
+	// Allow the hostname starting with A-Label: "xn--" of IDN(Internationalized Domain Name)
+	if strings.Contains(host, "--") == true && strings.HasPrefix(host, "xn--") == false { return false }
+
+	for _, e := range strings.Split(strings.ToUpper(host), "") {
+		// Check each characater is a number or an alphabet
+		if e[0] <  45              { return false } //  45 = '-'
+		if e[0] == 47              { return false } //  47 = '/'
+		if e[0] >  57 && e[0] < 65 { return false } //  57 = '9', 65 = 'A'
+		if e[0] >  90              { return false } //  90 = 'Z'
+	}
+
+	cv := host[strings.LastIndex(host, ".") + 1:]; if len(cv) > 63 { return false }
+	for _, e := range strings.Split(cv, "") {
+		// The top level domain should not include a number
+		if e[0] > 47 && e[0] < 58  { return false }
+	}
+	return true
+}
+
+// IsDomainLiteral returns true if the domain part is [IPv4:...] or [IPv6:...].
+//   Arguments:
+//     - email (string): Email address.
+//   Returns:
+//     - (bool): true if the domain part is a valid domain-literal, false otherwise.
+func IsDomainLiteral(email string) bool {
+	email = strings.Trim(email, "<>")
+	if len(email)                     < 16    { return false } // e@[IPv4:0.0.0.0] is 16 characters
+	if strings.HasSuffix(email, "]") == false { return false }
+
+	if strings.Contains(email, "@[IPv4:") {
+		// neko@[IPv4:192.0.2.25]
+		return rfc791.IsIPv4Address(moji.Select(email, "@[IPv4:", "]", 0))
+
+	} else if strings.Contains(email, "@[IPv6:") {
+		// neko@[IPv6:2001:0DB8:0000:0000:0000:0000:0000:0001]
+		// IPv6-address-literal  = "IPv6:" IPv6-addr
+		//    IPv6-addr      = IPv6-full / IPv6-comp / IPv6v4-full / IPv6v4-comp
+		//    IPv6-hex       = 1*4HEXDIG
+		//    IPv6-full      = IPv6-hex 7(":" IPv6-hex)
+		//    IPv6-comp      = [IPv6-hex *5(":" IPv6-hex)] "::"
+		//                     [IPv6-hex *5(":" IPv6-hex)]
+		//                     ; The "::" represents at least 2 16-bit groups of
+		//                     ; zeros.  No more than 6 groups in addition to the
+		//                     ; "::" may be present.
+		//    IPv6v4-full    = IPv6-hex 5(":" IPv6-hex) ":" IPv4-address-literal
+		//    IPv6v4-comp    = [IPv6-hex *3(":" IPv6-hex)] "::"
+		//                     [IPv6-hex *3(":" IPv6-hex) ":"]
+		//                     IPv4-address-literal
+		//                     ; The "::" represents at least 2 16-bit groups of
+		//                     ; zeros.  No more than 4 groups in addition to the
+		//                     ; "::" and IPv4-address-literal may be present.
+		cv := moji.Select(email, "@[IPv6:", "]", 0)
+		if len(cv) > 2 && strings.Count(cv, ":") > 2 { return true }
+	}
+	return false
+}
+
