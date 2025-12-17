@@ -1,0 +1,9 @@
+coverage.*
+usage-of-*
+*pprof*
+*maigo*
+*.txt
+sbin/
+stash/
+tmp/
+var/
