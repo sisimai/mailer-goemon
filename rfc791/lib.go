@@ -1,0 +1,50 @@
+// Copyright (C) 2024-2025 azumakuniyuki and sisimai development team, All rights reserved.
+// This software is distributed under The BSD 2-Clause License.
+//  ____  _____ ____ _____ ___  _ 
+// |  _ \|  ___/ ___|___  / _ \/ |
+// | |_) | |_ | |      / / (_) | |
+// |  _ <|  _|| |___  / / \__, | |
+// |_| \_\_|   \____|/_/    /_/|_|
+
+// Package "rfc791" provides functions related to IPv4 address described in RFC791.
+// https://datatracker.ietf.org/doc/html/rfc791
+package rfc791
+import "strings"
+import "strconv"
+
+// IsIPv4Address returns "true" when the given string is an IPv4 address.
+//   Arguments:
+//     - addr (string): IPv4 address like "192.0.2.25".
+//   Returns:
+//     - (bool): true if the argument is a valid IPv4 Address.
+//    See:
+//     - https://datatracker.ietf.org/doc/html/rfc791
+func IsIPv4Address(addr string) bool {
+	if len(addr) < 7 || strings.Count(addr, ".") != 3 { return false }
+
+	for _, e := range strings.Split(addr, ".") {
+		// Check each octet is between 0 and 255
+		if v, nyaan := strconv.Atoi(e); nyaan != nil || v < 0 || v > 255 { return false }
+	}
+	return true
+}
+
+// FindIPv4Address finds IPv4 addresses from the given string.
+//   Arguments:
+//     - text (string): String including an IPv4 address.
+//   Returns:
+//     - ([]string): List of IPv4 addresses found and picked from the argument.
+func FindIPv4Address(text string) []string {
+	if len(text) < 7 { return []string{} }
+
+	for _, e := range []string{"(", ")", "[", "]", ","} {
+		// Rewrite: "mx.example.jp[192.0.2.1]" => "mx.example.jp 192.0.2.1"
+		text = strings.ReplaceAll(text, e, " ")
+	}
+	ipv4a := make([]string, 0, 4); for _, e := range strings.Split(text, " ") {
+		// Find a string including an IPv4 address
+		if IsIPv4Address(e){ ipv4a = append(ipv4a, e) }
+	}
+	return ipv4a
+}
+
