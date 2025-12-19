@@ -182,6 +182,17 @@ func main() {
 // 2. false
 ```
 
+### Received(rhead string) [6]string
+`rfc5322.Received` convert a `Received` header to a structured data.
+```go
+import "libsisimai.org/mailer-goemon/rfc5322"
+func main() {
+	fmt.Printf("r1. %+#v\n", rfc5322.Received("from mx.example.org (c182128.example.net [192.0.2.128]) by mx.example.jp (8.14.4/8.14.4) with ESMTP id oBB3JxRJ022484 for <shironeko@example.jp>; Sat, 11 Dec 2010 12:20:00 +0900 (JST)"));
+}
+// [6]string{"mx.example.org", "mx.example.jp", "", "esmtp", "obb3jxrj022484", "shironeko@example.jp"}
+```
+
+
 See also
 ---------------------------------------------------------------------------------------------------
 * [RFC5321 - Simple Mail Transfer Protocol](https://tools.ietf.org/html/rfc5321)
