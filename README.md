@@ -1,6 +1,8 @@
 [![License](https://img.shields.io/badge/license-BSD%202--Clause-orange.svg)](https://github.com/sisimai/mailer-goemon/blob/master/LICENSE)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/sisimai/mailer-goemon)
+[![Go Reference](https://pkg.go.dev/badge/libsisimai.org/mailer-goemon.svg)](https://pkg.go.dev/libsisimai.org/mailer-goemon)
 
-mailer-goemon: Go Email Modules — Operations & Normalization
+Go Email Modules — Operations & Normalization
 ===================================================================================================
 **mailer-goemon** is a library of Go modules extracted from [Sisimai](https://libsisimai.org/),
 featuring the `address` package for email address validation and the `smtp` package for SMTP reply
@@ -136,6 +138,60 @@ func main() {
 	fmt.Printf("3. %t\n", command.Test("NEKO"))     // 3. false
 }
 ```
+
+rfc5322
+---------------------------------------------------------------------------------------------------
+Package `rfc5322` provides functions for email addresses, `Date:` header, `Received:` headers, and
+other headers and messages related to RFC5322. https://datatracker.ietf.org/doc/html/rfc5322
+
+### IsEmailAddress(email string) bool
+`rfc5322.IsEmailAddress` checks that the argument is an email address or not.
+```go
+import "libsisimai.org/mailer-goemon/rfc5322"
+func main() {
+	fmt.Printf("1. %t\n", rfc5322.IsEmailAddress("neko@example.jp"))
+	fmt.Printf("2. %t\n", rfc5322.IsEmailAddress(`"neko nyaan"@example.jp`))
+	fmt.Printf("3. %t\n", rfc5322.IsEmailAddress(`neko%example.jp`))
+}
+// 1. true
+// 2. true
+// 3. false
+```
+
+### IsQuotedAddress(email string) bool
+`rfc5322.IsQuotedAddress` checks that the local part of the argument is quoted address or not.
+```go
+import "libsisimai.org/mailer-goemon/rfc5322"
+func main() {
+	fmt.Printf("1. %t\n", rfc5322.IsQuotedAddress("neko@example.jp"))
+	fmt.Printf("2. %t\n", rfc5322.IsQuotedAddress(`"neko nyaan"@example.jp`))
+}
+// 1. false
+// 2. true
+```
+
+### IsComment(text string) bool
+`rfc5322.IsComment` returns `true` if the string starts with `(` and ends with `)`.
+```go
+import "libsisimai.org/mailer-goemon/rfc5322"
+func main() {
+	fmt.Printf("1. %t\n", rfc5322.IsComment("(nyaan?)"))
+	fmt.Printf("2. %t\n", rfc5322.IsComment("nyaaaaan?"))
+}
+// 1. true
+// 2. false
+```
+
+### Received(rhead string) [6]string
+`rfc5322.Received` convert a `Received` header to a structured data.
+```go
+import "libsisimai.org/mailer-goemon/rfc5322"
+func main() {
+	fmt.Printf("r1. %+#v\n", rfc5322.Received("from mx.example.org (c182128.example.net [192.0.2.128]) by mx.example.jp (8.14.4/8.14.4) with ESMTP id oBB3JxRJ022484 for <shironeko@example.jp>; Sat, 11 Dec 2010 12:20:00 +0900 (JST)"));
+}
+// [6]string{"mx.example.org", "mx.example.jp", "", "esmtp", "obb3jxrj022484", "shironeko@example.jp"}
+```
+
 
 See also
 ---------------------------------------------------------------------------------------------------
