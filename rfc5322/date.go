@@ -63,7 +63,7 @@ import "libsisimai.org/mailer-goemon/moji"
 var monthname = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 var dayofweek = []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
 
-// Date tidies up and converts the date string to the format.
+// Date tidies up and converts the date string to the normalized RFC5322 Date format.
 //   Arguments:
 //     - date0 (string): Date string.
 //   Returns:
@@ -73,8 +73,6 @@ var dayofweek = []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
 //     - https://datatracker.ietf.org/doc/html/rfc3339
 //     - https://en.wikipedia.org/wiki/ISO_8601
 func Date(date0 string) string {
-	// rfc5322.Date("2018-02-02T18:30:22 Fri") => Fri, 2 Feb 2018 18:30:22 +0000
-	// rfc5322.Date("Fri, Feb 2 2018 2:2:2")   => Fri, 2 Feb 2018 02:02:02 +0000
 	if date0 == "" { return "" }
 
 	datestring := strings.ReplaceAll(date0, ",", ", "); moji.Squeeze(&datestring, ' ') // "Thu,22" -> "Thu, 22"
